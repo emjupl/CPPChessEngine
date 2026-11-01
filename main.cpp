@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdint>
+#include <vector>
 
 using namespace std;
 
@@ -15,49 +16,28 @@ uint64_t whiteKnightKingSide = 0x40;
 
 uint64_t whiteFigures = whitePawns | whiteBishops | whiteQueen | whiteKing | whiteRookQueenSide | whiteRookKingSide | whiteKnightQueenSide | whiteKnightKingSide;
 
-uint64_t blackPawns = 0xFF000000000000;
+uint64_t blackPawns = 0x00FF000000000000;
+uint64_t blackBishops = 0x2400000000000000;
+uint64_t blackQueen = 0x0800000000000000;
+uint64_t blackKing = 0x1000000000000000;
+uint64_t blackRookQueenSide = 0x0100000000000000;
+uint64_t blackRookKingSide = 0x8000000000000000;
+uint64_t blackKnightQueenSide = 0x0200000000000000;
+uint64_t blackKnightKingSide = 0x4000000000000000;
 
+uint64_t blackFigures = blackPawns | blackBishops | blackQueen | blackKing | blackRookQueenSide | blackRookKingSide | blackKnightQueenSide | blackKnightKingSide;
 
+struct Move {
+    uint64_t fromField;
+    uint64_t toField;
+};
 
 uint64_t GenerateBitMaskForField(char col, int row){
 
     uint64_t selectedRow = row-1;
     uint64_t selectedCol = col;
 
-    switch(col){
-        case 'a':
-        case 'A':
-            selectedCol = 0;
-            break;
-        case 'b':
-        case 'B':
-            selectedCol = 1;
-            break;
-        case 'c':
-        case 'C':
-            selectedCol = 2;
-            break;
-        case 'd':
-        case 'D':
-            selectedCol = 3;
-            break;
-        case 'e':
-        case 'E':
-            selectedCol = 4;
-            break;
-        case 'f':
-        case 'F':
-            selectedCol = 5;
-            break;
-        case 'g':
-        case 'G':
-            selectedCol = 6;
-            break;
-        case 'h':
-        case 'H':
-            selectedCol = 7;
-            break;
-    }
+    selectedCol = col-97;
 
     uint64_t bit = 1;
     uint64_t bitMask = bit <<selectedCol << selectedRow*8;
@@ -72,12 +52,34 @@ bool IsFieldOccupiedBy(uint64_t figuresBitmask, uint64_t fieldBitmask){
     return false; 
 }
 
-int main(){
-    cout << GenerateBitMaskForField('g', 7) << endl;
-    cout << IsFieldOccupiedBy(whitePawns, GenerateBitMaskForField('b', 1)) << endl;
-    cout << IsFieldOccupiedBy(whiteBishops, GenerateBitMaskForField('c', 1)) << endl;
+vector<Move> CalculateSingleMoveForWhitePawns(uint64_t bitmap){
+    uint64_t row2 = 0xFF00;
+    uint64_t row7 = 0xFF000000000000;
+    uint64_t pawnsBitmap = bitmap;
+    vector<Move> legalMoves;
 
-    for(int i=0; i<64; i++){
+    while (pawnsBitmap){
+        uint64_t firstPawnIndex = __builtin_ctzll(pawnsBitmap);
+        uint64_t firstPawnBitmap = bit << firstPawnIndex; // bitmapa wskazujaca na pierwszego pionka (najpierw sprawdza rzedy od A do H, a potem od lewej do prawej)
+        
+        // musze odjac od whitePawns bitmape firstPawnIndex i bede miec bitmape kolejnych pionkow do sprawdzenia
+        uint64_t singlePawnMove = firstPawnBitmap << 8;
+        pawnsBitmap &= ~firstPawnBitmap;
+
+        if (IsFieldOccupiedBy(whiteFigures | blackFigures, singlePawnMove) == 0)
+        {
+            Move pawnMove;
+            pawnMove.fromField = firstPawnBitmap;
+            pawnMove.toField = singlePawnMove;
+
+            legalMoves.push_back(pawnMove);
+        }
+    }
+    return legalMoves;
+}
+
+void displayChessboard(){
+        for(int i=0; i<64; i++){
         uint64_t fieldIndex = bit << i;
         if(IsFieldOccupiedBy(whitePawns, fieldIndex)){
             cout << "[P]";
@@ -95,12 +97,34 @@ int main(){
             cout << "[N]";
         }else if(IsFieldOccupiedBy(whiteQueen, fieldIndex)){
             cout << "[Q]";
-        } else {
+        }else if (IsFieldOccupiedBy(blackPawns, fieldIndex)){
+            cout << "[p]";
+        } else if(IsFieldOccupiedBy(blackBishops, fieldIndex)){
+            cout << "[b]";
+        }else if(IsFieldOccupiedBy(blackKing, fieldIndex)){
+            cout << "[k]";
+        }else if(IsFieldOccupiedBy(blackRookQueenSide, fieldIndex)){
+            cout << "[r]";
+        }else if(IsFieldOccupiedBy(blackRookKingSide, fieldIndex)){
+            cout << "[r]";
+        }else if(IsFieldOccupiedBy(blackKnightQueenSide, fieldIndex)){
+            cout << "[n]";
+        }else if(IsFieldOccupiedBy(blackKnightKingSide, fieldIndex)){
+            cout << "[n]";
+        }else if(IsFieldOccupiedBy(blackQueen, fieldIndex)){
+            cout << "[q]";
+        }
+        
+        else {
             cout << "[ ]";
         }
         if(i%8==7){
             cout << endl;
         }
     }
+}
+
+int main(){
+    displayChessboard();
     return 0;
 }
