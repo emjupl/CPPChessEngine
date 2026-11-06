@@ -5,6 +5,10 @@
 using namespace std;
 
 uint64_t bit = 1;
+
+uint64_t fileA = 0x0101010101010101;
+uint64_t fileH = 0x8080808080808080;
+
 uint64_t whitePawns = 0xFF00;
 uint64_t whiteBishops = 0x24;
 uint64_t whiteQueen = 0x8;
@@ -14,7 +18,9 @@ uint64_t whiteRookKingSide = 0x80;
 uint64_t whiteKnightQueenSide = 0x2;
 uint64_t whiteKnightKingSide = 0x40;
 
-uint64_t whiteFigures = whitePawns | whiteBishops | whiteQueen | whiteKing | whiteRookQueenSide | whiteRookKingSide | whiteKnightQueenSide | whiteKnightKingSide;
+uint64_t customWhiteFigure = 0x10000;
+
+uint64_t whiteFigures = customWhiteFigure | whitePawns | whiteBishops | whiteQueen | whiteKing | whiteRookQueenSide | whiteRookKingSide | whiteKnightQueenSide | whiteKnightKingSide;
 
 uint64_t blackPawns = 0x00FF000000000000;
 uint64_t blackBishops = 0x2400000000000000;
@@ -32,16 +38,16 @@ struct Move {
     uint64_t toField;
 };
 
+void DisplayMovesStruct(vector<Move> movesVector){
+    for (int i = 0; i < movesVector.size(); i++) {
+        cout << movesVector[i].fromField << "<- From | To ->" << movesVector[i].toField << '\n';
+    }
+}
+
 uint64_t GenerateBitMaskForField(char col, int row){
-
-    uint64_t selectedRow = row-1;
-    uint64_t selectedCol = col;
-
-    selectedCol = col-97;
-
-    uint64_t bit = 1;
-    uint64_t bitMask = bit <<selectedCol << selectedRow*8;
-
+    row = row-1;
+    col = col-97;
+    uint64_t bitMask = bit << col << row*8;
     return bitMask;
 }
 
@@ -52,33 +58,65 @@ bool IsFieldOccupiedBy(uint64_t figuresBitmask, uint64_t fieldBitmask){
     return false; 
 }
 
+vector<Move> CalculateMoveForKing(uint64_t bitmap){
+    // UWAGA! W przyszlosci trzeba dodac rowniez sprawdzanie czy dane pole jest pod atakiem innej figury!
+    uint64_t kingMoves = bitmap << 8 | bitmap >> 8;
+    if(bitmap & fileA){
+        kingMoves = kingMoves | bitmap << 9 | bitmap << 1 | bitmap >> 7;
+    }else if(bitmap & fileH){
+        kingMoves = kingMoves | bitmap << 7 | bitmap >> 1 | bitmap >> 9;
+    } else {
+        kingMoves = kingMoves | bitmap << 1 | bitmap << 7 | bitmap << 8 | bitmap << 9 | bitmap >> 1 | bitmap >> 7 | bitmap >> 8 | bitmap >> 9;
+    }
+
+    uint64_t kingLegalMoves = kingMoves & ~(whiteFigures | blackFigures);
+    vector<Move> legalMoves;
+    while(kingLegalMoves){
+        uint64_t firstKingLegalMoveIndex = __builtin_ctzll(kingLegalMoves);
+        uint64_t firstKingLegalMoveBitmap = bit << firstKingLegalMoveIndex;
+        kingLegalMoves = kingLegalMoves & ~firstKingLegalMoveBitmap;
+
+        Move kingMove;
+        kingMove.fromField = bitmap;
+        kingMove.toField = firstKingLegalMoveBitmap;
+        legalMoves.push_back(kingMove);
+    }
+    return legalMoves;
+}
+
 vector<Move> CalculateSingleMoveForWhitePawns(uint64_t bitmap){
     uint64_t row2 = 0xFF00;
     uint64_t row7 = 0xFF000000000000;
-    uint64_t pawnsBitmap = bitmap;
+    uint64_t remainedPawnsBitmap = bitmap;
     vector<Move> legalMoves;
 
-    while (pawnsBitmap){
-        uint64_t firstPawnIndex = __builtin_ctzll(pawnsBitmap);
+    while (remainedPawnsBitmap){
+        uint64_t firstPawnIndex = __builtin_ctzll(remainedPawnsBitmap);
         uint64_t firstPawnBitmap = bit << firstPawnIndex; // bitmapa wskazujaca na pierwszego pionka (najpierw sprawdza rzedy od A do H, a potem od lewej do prawej)
-        
         // musze odjac od whitePawns bitmape firstPawnIndex i bede miec bitmape kolejnych pionkow do sprawdzenia
         uint64_t singlePawnMove = firstPawnBitmap << 8;
-        pawnsBitmap &= ~firstPawnBitmap;
-
-        if (IsFieldOccupiedBy(whiteFigures | blackFigures, singlePawnMove) == 0)
+        remainedPawnsBitmap &= ~firstPawnBitmap;
+        if (!IsFieldOccupiedBy(whiteFigures | blackFigures, singlePawnMove))
         {
             Move pawnMove;
             pawnMove.fromField = firstPawnBitmap;
             pawnMove.toField = singlePawnMove;
-
             legalMoves.push_back(pawnMove);
+            uint64_t doublePawnMove = singlePawnMove<<8;
+            if(firstPawnBitmap & row2){
+                if (!IsFieldOccupiedBy(whiteFigures | blackFigures, doublePawnMove)){
+                Move pawnMove;
+                pawnMove.fromField = firstPawnBitmap;
+                pawnMove.toField = doublePawnMove;
+                legalMoves.push_back(pawnMove);
+                }
+            }
         }
     }
     return legalMoves;
 }
 
-void displayChessboard(){
+void DisplayChessboard(){
         for(int i=0; i<64; i++){
         uint64_t fieldIndex = bit << i;
         if(IsFieldOccupiedBy(whitePawns, fieldIndex)){
@@ -113,11 +151,10 @@ void displayChessboard(){
             cout << "[n]";
         }else if(IsFieldOccupiedBy(blackQueen, fieldIndex)){
             cout << "[q]";
-        }
-        
-        else {
+        }else {
             cout << "[ ]";
         }
+
         if(i%8==7){
             cout << endl;
         }
@@ -125,6 +162,15 @@ void displayChessboard(){
 }
 
 int main(){
-    displayChessboard();
+    DisplayChessboard();
+    
+    cout << "All legal moves for white pawns: " << endl;
+    vector<Move> pawnsLegalMoves = CalculateSingleMoveForWhitePawns(whitePawns);
+    DisplayMovesStruct(pawnsLegalMoves);
+
+    cout << "All legal moves for white king: " << endl;
+    vector<Move> kingLegalMoves = CalculateMoveForKing(whiteKing);
+    DisplayMovesStruct(kingLegalMoves);
+    
     return 0;
 }
