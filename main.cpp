@@ -45,9 +45,7 @@ void DisplayMovesStruct(vector<Move> movesVector){
 }
 
 uint64_t GenerateBitMaskForField(char col, int row){
-    row = row-1;
-    col = col-97;
-    uint64_t bitMask = bit << col << row*8;
+    uint64_t bitMask = bit << col-97 << (row-1)*8;
     return bitMask;
 }
 
