@@ -4,44 +4,46 @@
 
 using namespace std;
 
-uint64_t bit = 1;
-
-uint64_t fileA = 0x0101010101010101;
-uint64_t fileH = 0x8080808080808080;
+const uint64_t bit = 1;
+const uint64_t fileA = 0x0101010101010101;
+const uint64_t fileH = 0x8080808080808080;
 
 uint64_t whitePawns = 0xFF00;
 uint64_t whiteBishops = 0x24;
 uint64_t whiteQueen = 0x8;
 uint64_t whiteKing = 0x10;
-uint64_t whiteRookQueenSide = 0x1;
-uint64_t whiteRookKingSide = 0x80;
-uint64_t whiteKnightQueenSide = 0x2;
-uint64_t whiteKnightKingSide = 0x40;
+uint64_t whiteRooks = 0x1 | 0x80;
+uint64_t whiteKnights = 0x2 | 0x40 ;
 
-uint64_t customWhiteFigure = 0x10000;
+uint64_t customFigure = 0x0000;
 
-uint64_t whiteFigures = customWhiteFigure | whitePawns | whiteBishops | whiteQueen | whiteKing | whiteRookQueenSide | whiteRookKingSide | whiteKnightQueenSide | whiteKnightKingSide;
+uint64_t whiteFigures = whitePawns | whiteBishops | whiteQueen | whiteKing | whiteRooks| whiteKnights;
 
 uint64_t blackPawns = 0x00FF000000000000;
 uint64_t blackBishops = 0x2400000000000000;
 uint64_t blackQueen = 0x0800000000000000;
 uint64_t blackKing = 0x1000000000000000;
-uint64_t blackRookQueenSide = 0x0100000000000000;
-uint64_t blackRookKingSide = 0x8000000000000000;
-uint64_t blackKnightQueenSide = 0x0200000000000000;
-uint64_t blackKnightKingSide = 0x4000000000000000;
+uint64_t blackRooks = 0x0100000000000000 | 0x8000000000000000;
+uint64_t blackKnights = 0x0200000000000000 | 0x4000000000000000;
 
-uint64_t blackFigures = blackPawns | blackBishops | blackQueen | blackKing | blackRookQueenSide | blackRookKingSide | blackKnightQueenSide | blackKnightKingSide;
+uint64_t blackFigures = customFigure | blackPawns | blackBishops | blackQueen | blackKing | blackRooks | blackKnights;
 
 struct Move {
     uint64_t fromField;
     uint64_t toField;
 };
 
-void DisplayMovesStruct(vector<Move> movesVector){
+void DisplayMovesVector(vector<Move> movesVector){
     for (int i = 0; i < movesVector.size(); i++) {
         cout << movesVector[i].fromField << "<- From | To ->" << movesVector[i].toField << '\n';
     }
+}
+
+void PushMoveToVector(uint64_t fromField, uint64_t toField, vector<Move>& movesVector){
+    Move move;
+    move.fromField = fromField;
+    move.toField = toField;
+    movesVector.push_back(move);
 }
 
 uint64_t GenerateBitMaskForField(char col, int row){
@@ -56,7 +58,8 @@ bool IsFieldOccupiedBy(uint64_t figuresBitmask, uint64_t fieldBitmask){
     return false; 
 }
 
-vector<Move> CalculateMoveForKing(uint64_t bitmap){
+vector<Move> CalculateMovesForKing(uint64_t bitmap){
+    // Trzeba rozjebać tą funkcje na liczenie atakowanych pol przez króla i zrobic druga zwracajaca mozliwe ruchy
     // UWAGA! W przyszlosci trzeba dodac rowniez sprawdzanie czy dane pole jest pod atakiem innej figury!
     uint64_t kingMoves = bitmap << 8 | bitmap >> 8;
     if(bitmap & fileA){
@@ -74,15 +77,14 @@ vector<Move> CalculateMoveForKing(uint64_t bitmap){
         uint64_t firstKingLegalMoveBitmap = bit << firstKingLegalMoveIndex;
         kingLegalMoves = kingLegalMoves & ~firstKingLegalMoveBitmap;
 
-        Move kingMove;
-        kingMove.fromField = bitmap;
-        kingMove.toField = firstKingLegalMoveBitmap;
-        legalMoves.push_back(kingMove);
+        PushMoveToVector(bitmap, firstKingLegalMoveBitmap, legalMoves);
     }
     return legalMoves;
 }
 
-vector<Move> CalculateSingleMoveForWhitePawns(uint64_t bitmap){
+// Liczenie ruchow dla bialych pionkow
+
+vector<Move> CalculateMovesForWhitePawns(uint64_t bitmap){
     uint64_t row2 = 0xFF00;
     uint64_t row7 = 0xFF000000000000;
     uint64_t remainedPawnsBitmap = bitmap;
@@ -96,17 +98,12 @@ vector<Move> CalculateSingleMoveForWhitePawns(uint64_t bitmap){
         remainedPawnsBitmap &= ~firstPawnBitmap;
         if (!IsFieldOccupiedBy(whiteFigures | blackFigures, singlePawnMove))
         {
-            Move pawnMove;
-            pawnMove.fromField = firstPawnBitmap;
-            pawnMove.toField = singlePawnMove;
-            legalMoves.push_back(pawnMove);
+            PushMoveToVector(firstPawnBitmap, singlePawnMove, legalMoves);
+
             uint64_t doublePawnMove = singlePawnMove<<8;
             if(firstPawnBitmap & row2){
                 if (!IsFieldOccupiedBy(whiteFigures | blackFigures, doublePawnMove)){
-                Move pawnMove;
-                pawnMove.fromField = firstPawnBitmap;
-                pawnMove.toField = doublePawnMove;
-                legalMoves.push_back(pawnMove);
+                    PushMoveToVector(firstPawnBitmap, doublePawnMove, legalMoves);
                 }
             }
         }
@@ -114,6 +111,49 @@ vector<Move> CalculateSingleMoveForWhitePawns(uint64_t bitmap){
     return legalMoves;
 }
 
+
+// OBLICZANIE ATAKOWANYCH POL
+
+// Obliczanie atakowanych pol przez biale pionki
+// Nie obejmuje jeszcze bicia w przelocie
+vector<Move> CalculateAttackedFieldsForWhitePawns(uint64_t pawnsBitmap){
+    vector<Move> attackedFields;
+    while(pawnsBitmap){
+            uint64_t firstPawnIndex = __builtin_ctzll(pawnsBitmap);
+            uint64_t firstPawnBitmap = bit << firstPawnIndex;
+            pawnsBitmap &= ~firstPawnBitmap;
+
+            uint64_t attackedFieldLeft = firstPawnBitmap << 7;
+            uint64_t attackedFieldRight = firstPawnBitmap << 9;
+
+        if(firstPawnBitmap & fileA){
+            PushMoveToVector(firstPawnBitmap, attackedFieldRight, attackedFields);
+        } else if(firstPawnBitmap & fileH){
+            PushMoveToVector(firstPawnBitmap, attackedFieldLeft, attackedFields);
+        } else {
+            PushMoveToVector(firstPawnBitmap, attackedFieldLeft, attackedFields);
+            PushMoveToVector(firstPawnBitmap, attackedFieldRight, attackedFields);
+        }
+    }
+    return attackedFields;
+}
+
+// Liczenie ktore pola atakowane przez figury sa zajete przez przeciwne figury
+
+vector<Move> CalculateCaptures(vector<Move> attackedFields, uint64_t oppositeFigures){
+    vector<Move> capturesFields;
+    for (int i = 0; i < attackedFields.size(); i++) {
+        if(attackedFields[i].toField & oppositeFigures){
+            PushMoveToVector(attackedFields[i].fromField, attackedFields[i].toField, capturesFields);
+        }
+    }
+    return capturesFields;
+}
+
+
+// Wyswietlanie szachownicy 
+// Biale figury to duze litery
+// Czarne figury to male litery
 void DisplayChessboard(){
         for(int i=0; i<64; i++){
         uint64_t fieldIndex = bit << i;
@@ -123,13 +163,9 @@ void DisplayChessboard(){
             cout << "[B]";
         }else if(IsFieldOccupiedBy(whiteKing, fieldIndex)){
             cout << "[K]";
-        }else if(IsFieldOccupiedBy(whiteRookQueenSide, fieldIndex)){
+        }else if(IsFieldOccupiedBy(whiteRooks, fieldIndex)){
             cout << "[R]";
-        }else if(IsFieldOccupiedBy(whiteRookKingSide, fieldIndex)){
-            cout << "[R]";
-        }else if(IsFieldOccupiedBy(whiteKnightQueenSide, fieldIndex)){
-            cout << "[N]";
-        }else if(IsFieldOccupiedBy(whiteKnightKingSide, fieldIndex)){
+        }else if(IsFieldOccupiedBy(whiteKnights, fieldIndex)){
             cout << "[N]";
         }else if(IsFieldOccupiedBy(whiteQueen, fieldIndex)){
             cout << "[Q]";
@@ -139,13 +175,9 @@ void DisplayChessboard(){
             cout << "[b]";
         }else if(IsFieldOccupiedBy(blackKing, fieldIndex)){
             cout << "[k]";
-        }else if(IsFieldOccupiedBy(blackRookQueenSide, fieldIndex)){
+        }else if(IsFieldOccupiedBy(blackRooks, fieldIndex)){
             cout << "[r]";
-        }else if(IsFieldOccupiedBy(blackRookKingSide, fieldIndex)){
-            cout << "[r]";
-        }else if(IsFieldOccupiedBy(blackKnightQueenSide, fieldIndex)){
-            cout << "[n]";
-        }else if(IsFieldOccupiedBy(blackKnightKingSide, fieldIndex)){
+        }else if(IsFieldOccupiedBy(blackKnights, fieldIndex)){
             cout << "[n]";
         }else if(IsFieldOccupiedBy(blackQueen, fieldIndex)){
             cout << "[q]";
@@ -163,12 +195,20 @@ int main(){
     DisplayChessboard();
     
     cout << "All legal moves for white pawns: " << endl;
-    vector<Move> pawnsLegalMoves = CalculateSingleMoveForWhitePawns(whitePawns);
-    DisplayMovesStruct(pawnsLegalMoves);
+    vector<Move> pawnsLegalMoves = CalculateMovesForWhitePawns(whitePawns);
+    DisplayMovesVector(pawnsLegalMoves);
+
+    cout << "All attacked fields for white pawns: " << endl;
+    vector<Move> pawnsAttackingMoves = CalculateAttackedFieldsForWhitePawns(whitePawns);
+    DisplayMovesVector(pawnsAttackingMoves);
+
+    cout << "All captures for white pawns: " << endl;
+    vector<Move> pawnsCapturingMoves = CalculateCaptures(pawnsAttackingMoves, blackFigures);
+    DisplayMovesVector(pawnsCapturingMoves);
 
     cout << "All legal moves for white king: " << endl;
-    vector<Move> kingLegalMoves = CalculateMoveForKing(whiteKing);
-    DisplayMovesStruct(kingLegalMoves);
+    vector<Move> kingLegalMoves = CalculateMovesForKing(whiteKing);
+    DisplayMovesVector(kingLegalMoves);
     
     return 0;
 }
