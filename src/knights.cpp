@@ -12,40 +12,25 @@ std::vector<Move> CalculateMovesForKnights(uint64_t knightsBitmap, Board board){
     }
     std::vector<Move> legalMoves;
     while(knightsBitmap){
-       uint64_t firstKnightIndex = __builtin_ctzll(knightsBitmap);
-       uint64_t firstKnightBitmap = bit << firstKnightIndex;
-       knightsBitmap = knightsBitmap & ~firstKnightBitmap;
-
-       std::vector<uint64_t>  movesBeforeCheckingFieldOccupancy;
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap << 6); //knightMoveLeftUp
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap >> 10); //knighMoveLeftDown
-
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap << 15); //knightMoveUpLeft 
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap << 17); //knightMoveUpRight
-
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap << 10); //knightMoveRightUp
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap >> 6); //knightMoveRightDown
-
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap >> 17); //knightMoveDownLeft
-       movesBeforeCheckingFieldOccupancy.push_back(firstKnightBitmap >> 15); //knightMoveDownRight
-
-       for(size_t i = 0; i<movesBeforeCheckingFieldOccupancy.size(); i++){
-        if(firstKnightBitmap & fileA){
-            movesBeforeCheckingFieldOccupancy[i] = movesBeforeCheckingFieldOccupancy[i] & ~(fileG | fileH);
-        } else if(firstKnightBitmap & fileB){
-            movesBeforeCheckingFieldOccupancy[i] = movesBeforeCheckingFieldOccupancy[i] & ~fileH;
-        } else if(firstKnightBitmap & fileG){
-            movesBeforeCheckingFieldOccupancy[i] = movesBeforeCheckingFieldOccupancy[i] & ~fileA;
-        } else if(firstKnightBitmap & fileH){
-            movesBeforeCheckingFieldOccupancy[i] = movesBeforeCheckingFieldOccupancy[i] & ~(fileA | fileB);
-        }
-
-        if(!(movesBeforeCheckingFieldOccupancy[i] & friendlyFigures)){
-            if(movesBeforeCheckingFieldOccupancy[i]){
-                PushMoveToVector(firstKnightBitmap, movesBeforeCheckingFieldOccupancy[i], legalMoves);
+        uint64_t firstKnightIndex = __builtin_ctzll(knightsBitmap);
+        uint64_t firstKnightBitmap = bit << firstKnightIndex;
+        knightsBitmap = knightsBitmap & ~firstKnightBitmap;
+        std::vector<uint64_t>  attackedFields;
+        attackedFields.push_back((firstKnightBitmap << 6) & ~(fileG | fileH)); //knightMoveLeftUp
+        attackedFields.push_back((firstKnightBitmap >> 10) & ~(fileG | fileH)); //knighMoveLeftDown
+        attackedFields.push_back((firstKnightBitmap << 15) & ~fileH); //knightMoveUpLeft 
+        attackedFields.push_back((firstKnightBitmap << 17)& ~fileA); //knightMoveUpRight
+        attackedFields.push_back((firstKnightBitmap << 10) & ~(fileA | fileB)); //knightMoveRightUp
+        attackedFields.push_back((firstKnightBitmap >> 6)  & ~(fileA | fileB)); //knightMoveRightDown
+        attackedFields.push_back((firstKnightBitmap >> 17) & ~fileH); //knightMoveDownLeft
+        attackedFields.push_back((firstKnightBitmap >> 15)  & ~fileA); //knightMoveDownRight
+        for(size_t i = 0; i<attackedFields.size(); i++){
+            if(!(attackedFields[i] & friendlyFigures)){
+                if(attackedFields[i]){
+                    PushMoveToVector(firstKnightBitmap, attackedFields[i], legalMoves);
+                }
             }
         }
-       }
     }
     return legalMoves;
 }
